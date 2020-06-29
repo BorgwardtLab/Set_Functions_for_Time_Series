@@ -4,7 +4,7 @@ This is the main source code for the submission `Set Functions for Time
 Series`. It depends on two further packages `keras-transformer` (fork with
 support for sequences of different lengths) and `medical-ts-datasets`
 ( containing the implementation of the datasets used ) which are included into
-the repository in the `repos` directory as git submodules. 
+the repository in the `repos` directory as git submodules.
 
 ## Installation
 
@@ -20,7 +20,7 @@ cd Set_Functions_for_Time_Series
 # Install poetry
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
 # Install the `SeFT` package with its dependencies
-cd SeFT && poetry install
+poetry install
 ```
 
 ## Quickstart
@@ -31,7 +31,17 @@ in the directory `~/tensorflow_datasets`.
 
 Example usage (in SeFT subdirectory):
 ```bash
-poetry run seft_fit_model --dataset physionet2019 --balance --log_dir test_transformer TransformerModel 
+$ poetry run seft_fit_model --dataset physionet2019 --balance --log_dir test_transformer TransformerModel 
+
+Recreate run using following command:
+seft_fit_model --random_seed 982927477 --dataset physionet2019 --balance \
+  --max_epochs 300 --early_stopping 30 --log_dir test_transformer \
+  TransformerModel --learning_rate 0.001 --batch_size 64 --warmup_steps 1000 \
+  --n_dims 128 --n_heads 4 --n_layers 1 --dropout 0.0 --attn_dropout 0.0 \
+  --aggregation_fn mean --max_timescale 100.0
+Train on 176 steps, validate on 101 steps
+Epoch 1/300
+  5/176 [..............................] - ETA: 8:18 - loss: 0.1676 - acc: 0.1056 
 ```
 
 ## Usage
