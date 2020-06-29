@@ -7,10 +7,10 @@ license = "BSD-3-clause"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-medical-ts-datasets = {path = "../medical_ts_datasets"}
+medical-ts-datasets = {path = "repos/medical_ts_datasets"}
 tensorflow = { version = "=1.15.2", markers = "sys_platform != 'linux'" }
 tensorflow-gpu = { version = "=1.15.2", markers = "sys_platform == 'linux'" }
-keras-transformer = {path = "../keras-transformer"}
+keras-transformer = {path = "repos/keras-transformer"}
 scikit-learn = "^0.22.1"
 tqdm = "^4.42.0"
 

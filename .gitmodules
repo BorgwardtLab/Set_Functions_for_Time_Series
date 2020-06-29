@@ -1,0 +1,7 @@
+[submodule "repos/keras-transformer"]
+	path = repos/keras-transformer
+	url = https://github.com/ExpectationMax/keras-transformer.git
+[submodule "repos/medical_ts_datasets"]
+	path = repos/medical_ts_datasets
+	url = https://github.com/ExpectationMax/medical_ts_datasets.git
+	branch = merge_with_seft_dataformat
