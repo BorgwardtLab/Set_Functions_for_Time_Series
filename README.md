@@ -3,9 +3,8 @@
 This is the main source code for the submission `Set Functions for Time
 Series`. It depends on two further packages `keras-transformer` (fork with
 support for sequences of different lengths) and `medical-ts-datasets`
-( containing the implementation of the datasets used) which are in the parent
-directory.
-
+( containing the implementation of the datasets used ) which are included into
+the repository in the `repos` directory as git submodules. 
 
 ## Installation
 
@@ -15,7 +14,9 @@ a virtual python environment and to install the package inside this
 environment.
 
 ```bash
-cd SeFT_source_submission  # or `cd ..` if you are in the folder of this readme
+# Clone the repository using the `--recursive` option
+git clone --recursive https://github.com/BorgwardtLab/Set_Functions_for_Time_Series.git
+cd Set_Functions_for_Time_Series
 # Install poetry
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
 # Install the `SeFT` package with its dependencies
@@ -26,7 +27,7 @@ cd SeFT && poetry install
 
 One can quickly test the models on one of the online available datasets. If
 they are not yet downloaded, they will be automatically downloaded and stored
-in the directory `~/tenosrflow_datasets`.
+in the directory `~/tensorflow_datasets`.
 
 Example usage (in SeFT subdirectory):
 ```bash
