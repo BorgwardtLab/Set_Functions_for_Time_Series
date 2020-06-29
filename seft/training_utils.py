@@ -207,7 +207,7 @@ def build_validation_iterator(dataset_name, batch_size, prepro_fn):
     batched_dataset = dataset.padded_batch(
         batch_size,
         get_output_shapes(dataset),
-        padding_values=get_padding_values(dataset.output_types),
+        padding_values=get_padding_values(get_output_types(dataset)),
         drop_remainder=False
     )
     return batched_dataset, steps_per_epoch
@@ -229,7 +229,7 @@ def build_test_iterator(dataset_name, batch_size, prepro_fn):
     batched_dataset = dataset.padded_batch(
         batch_size,
         get_output_shapes(dataset),
-        padding_values=get_padding_values(dataset.output_types),
+        padding_values=get_padding_values(get_output_types(dataset)),
         drop_remainder=False
     )
     return batched_dataset, steps
