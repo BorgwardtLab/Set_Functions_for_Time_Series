@@ -106,3 +106,9 @@ preprocessed data repository.
 The following models are supported:
 `GRUSimpleModel`, `PhasedLSTMModel`, `InterpolationPredictionModel`,
 `GRUDModel`, `TransformerModel`, `DeepSetAttentionModel`
+
+# Copyright
+
+This collective work is copyright (c) 2020 by Max Horn. Individual
+portions may be copyright by individual contributors, and are included
+in this collective work with permission of the copyright owners.
