@@ -302,9 +302,10 @@ class TrainingLoop(Callable):
         train_iter, steps_per_epoch, val_iter, val_steps = \
             self._prepare_dataset_for_training()
 
+        optim = tf.keras.optimizers.Adam(
+            learning_rate=self.hparams['learning_rate'])
         self.model.compile(
-            optimizer='adam',
-            lr=self.hparams['learning_rate'],
+            optimizer=optim,
             loss=self.task.loss,
             metrics=['accuracy'],
             # TODO: Continue here
