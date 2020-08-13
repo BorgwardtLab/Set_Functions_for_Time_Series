@@ -99,7 +99,7 @@ class OnlineBinaryClassification(Task):
 
     @property
     def monitor_quantity(self):
-        return 'auprc'
+        return 'balanced_accuracy'
 
     @property
     def direction_of_improvement(self):
