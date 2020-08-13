@@ -90,7 +90,9 @@ def cumulative_segment_wrapper(fun):
             i_end, filled_array = tf.while_loop(
                 loop_cond,
                 execute_cumulative_op_on_segment,
-                loop_vars=(tf.constant(0), output_array)
+                loop_vars=(tf.constant(0), output_array),
+                parallel_iterations=10,
+                swap_memory=True
             )
             output_tensor = filled_array.concat()
             output_tensor.set_shape(x.get_shape())
