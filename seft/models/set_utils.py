@@ -30,7 +30,6 @@ def cumulative_softmax_weighting(values, preattention, segment_ids, eps=1e-7):
     head_preattn = tf.unstack(preattention, axis=-1)
     exp_head_preattn = []
     cumulative_exp_preattn = []
-    cum_segment_sum = cumulative_segment_wrapper(tf.math.cumsum)
 
     for cur_head_preattn in head_preattn:
         # For numerical stability subtract the max from data values
@@ -42,16 +41,20 @@ def cumulative_softmax_weighting(values, preattention, segment_ids, eps=1e-7):
         exp_preattn = tf.exp(normalized, name='exp_preattn')
         exp_head_preattn.append(exp_preattn)
         cumulative_exp_preattn.append(
-            cum_segment_sum(exp_preattn, segment_ids, name='segment_cumsum'))
+            cumulative_segment_sum(
+                exp_preattn, segment_ids, name='segment_cumsum'))
 
     exp_head_preattn = tf.stack(exp_head_preattn, -1)
     weighted_values = \
         tf.expand_dims(values, 1) * tf.expand_dims(exp_head_preattn, -1)
 
     cumulative_exp_preattn = tf.stack(cumulative_exp_preattn, axis=-1)
-    out = weighted_values / (tf.expand_dims(cumulative_exp_preattn, -1) + eps)
+
     # Sum the values
-    out = cum_segment_sum(out, segment_ids)
+    out = (
+        (cumulative_segment_sum(weighted_values, segment_ids) + eps)
+        / (tf.expand_dims(cumulative_exp_preattn, -1) + eps)
+    )
     return out
 
 
@@ -111,6 +114,10 @@ def cumulative_mean(tensor):
     start = tf.constant(1, dtype=tensor.dtype)
     n_elements_summed = tf.range(start, n_elements+1, dtype=tensor.dtype)
     return tf.cumsum(tensor, axis=0) / tf.expand_dims(n_elements_summed, -1)
+
+
+cumulative_segment_mean = cumulative_segment_wrapper(cumulative_mean)
+cumulative_segment_sum = cumulative_segment_wrapper(tf.math.cumsum)
 
 
 def cumulative_softmax(tensor):
