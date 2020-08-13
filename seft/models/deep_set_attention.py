@@ -8,7 +8,7 @@ from tensorflow.python.framework.smart_cond import smart_cond
 
 from .set_utils import (
     build_dense_dropout_model, PaddedToSegments, SegmentAggregation,
-    cumulative_softmax_weighting)
+    cumulative_softmax_weighting, cumulative_segment_mean)
 from .utils import segment_softmax
 
 
@@ -47,6 +47,64 @@ class PositionalEncoding(tf.keras.layers.Layer):
         return (input_shape[0], input_shape[1], self.n_dim)
 
 
+class CumulativeSetAttentionLayer(tf.keras.layers.Layer):
+    dense_options = {
+        'activation': 'relu',
+        'kernel_initializer': 'he_uniform'
+    }
+    def __init__(self, n_layers=2, width=128, latent_width=128,
+                 aggregation_function='mean',
+                 dot_prod_dim=64, n_heads=4, attn_dropout=0.3):
+        super().__init__()
+        assert aggregation_function == 'mean'
+        self.width = width
+        self.dot_prod_dim = dot_prod_dim
+        self.attn_dropout = attn_dropout
+        self.n_heads = n_heads
+        self.psi = build_dense_dropout_model(
+            n_layers, width, 0., self.dense_options)
+        self.psi.add(Dense(latent_width, **self.dense_options))
+        self.rho = Dense(latent_width, **self.dense_options)
+
+    def build(self, input_shape):
+        self.psi.build(input_shape)
+        encoded_shape = self.psi.compute_output_shape(input_shape)
+        self.rho.build(encoded_shape)
+        self.W_k = self.add_weight(
+            'W_k',
+            (encoded_shape[-1] + input_shape[-1], self.dot_prod_dim*self.n_heads),
+            initializer='he_uniform'
+        )
+        self.W_q = self.add_weight(
+            'W_q', (self.n_heads, self.dot_prod_dim),
+            initializer=tf.keras.initializers.Zeros()
+        )
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.n_heads)
+
+    def call(self, inputs, segment_ids, training=None):
+        if training is None:
+            training = tf.keras.backend.learning_phase()
+
+        encoded = self.psi(inputs)
+
+        # cumulative mean aggregation
+        agg = cumulative_segment_mean(encoded, segment_ids)
+        agg = self.rho(agg)
+
+        combined = tf.concat([inputs, agg], axis=-1)
+        keys = tf.matmul(combined, self.W_k)
+        keys = tf.stack(tf.split(keys, self.n_heads, -1), 1)
+        keys = tf.expand_dims(keys, axis=2)
+        # should have shape (el, heads, 1, dot_prod_dim)
+        queries = tf.expand_dims(tf.expand_dims(self.W_q, -1), 0)
+        # should have shape (1, heads, dot_prod_dim, 1)
+        preattn = tf.matmul(keys, queries) / tf.sqrt(float(self.dot_prod_dim))
+        preattn = tf.squeeze(tf.squeeze(preattn, -1), -1)
+        return preattn
+
+
 class SetAttentionLayer(tf.keras.layers.Layer):
     dense_options = {
         'activation': 'relu',
@@ -54,26 +112,23 @@ class SetAttentionLayer(tf.keras.layers.Layer):
     }
     def __init__(self, n_layers=2, width=128, latent_width=128,
                  aggregation_function='mean',
-                 dot_prod_dim=64, n_heads=4, attn_dropout=0.3,
-                 cumulative=False):
+                 dot_prod_dim=64, n_heads=4, attn_dropout=0.3):
         super().__init__()
         self.width = width
         self.dot_prod_dim = dot_prod_dim
         self.attn_dropout = attn_dropout
         self.n_heads = n_heads
-        self.cumulative = cumulative
         self.psi = build_dense_dropout_model(
             n_layers, width, 0., self.dense_options)
         self.psi.add(Dense(latent_width, **self.dense_options))
-        self.psi_aggregation = SegmentAggregation(
-            aggregation_function,
-            cumulative=self.cumulative
-        )
+        self.psi_aggregation = SegmentAggregation(aggregation_function)
+        self.rho = Dense(latent_width, **self.dense_options)
 
     def build(self, input_shape):
         self.psi.build(input_shape)
         encoded_shape = self.psi.compute_output_shape(input_shape)
         agg_shape = self.psi_aggregation.compute_output_shape(encoded_shape)
+        self.rho.build(agg_shape)
         self.W_k = self.add_weight(
             'W_k',
             (encoded_shape[-1] + input_shape[-1], self.dot_prod_dim*self.n_heads),
@@ -94,23 +149,6 @@ class SetAttentionLayer(tf.keras.layers.Layer):
                     tf.random.uniform(
                         tf.shape(input_tensor)[:-1]
                     ) < self.attn_dropout)
-                if self.cumulative:
-                    # Never drop out the first value of the segment otherwise
-                    # we run into problems downstream with the cumulative
-                    # softmax computation
-                    n_instances = tf.shape(lengths)[0]
-                    indices_of_first_elements = \
-                        tf.cumsum(lengths, exclusive=True)[:, None]
-                    updates = tf.fill(
-                        tf.stack([n_instances, self.n_heads]),
-                        False
-                    )
-
-                    mask = tf.tensor_scatter_nd_update(
-                        mask,
-                        indices_of_first_elements,
-                        updates
-                    )
                 return (
                     input_tensor
                     + tf.expand_dims(tf.cast(mask, tf.float32), -1) * -1e9
@@ -119,11 +157,9 @@ class SetAttentionLayer(tf.keras.layers.Layer):
                 return tf.identity(input_tensor)
 
         encoded = self.psi(inputs)
-        if self.cumulative:
-            agg_scattered = self.psi_aggregation(encoded, segment_ids)
-        else:
-            agg = self.psi_aggregation(encoded, segment_ids)
-            agg_scattered = tf.gather_nd(agg, tf.expand_dims(segment_ids, -1))
+        agg = self.psi_aggregation(encoded, segment_ids)
+        agg = self.rho(agg)
+        agg_scattered = tf.gather_nd(agg, tf.expand_dims(segment_ids, -1))
         combined = tf.concat([inputs, agg_scattered], axis=-1)
         keys = tf.matmul(combined, self.W_k)
         keys = tf.stack(tf.split(keys, self.n_heads, -1), 1)
@@ -138,9 +174,6 @@ class SetAttentionLayer(tf.keras.layers.Layer):
             lambda: dropout_attn(preattn),
             lambda: tf.identity(preattn)
         )
-
-        if self.cumulative:
-            return preattn
 
         per_head_preattn = tf.unstack(preattn, axis=1)
         attentions = []
@@ -205,12 +238,18 @@ class DeepSetAttentionModel(tf.keras.Model):
         self.latent_width = latent_width
         self.n_heads = n_heads
 
-        self.attention = SetAttentionLayer(
-            n_psi_layers, psi_width, psi_latent_width,
-            dot_prod_dim=dot_prod_dim, n_heads=n_heads,
-            attn_dropout=attn_dropout,
-            cumulative=self.return_sequences
-        )
+        if self.return_sequences:
+            self.attention = CumulativeSetAttentionLayer(
+                n_psi_layers, psi_width, psi_latent_width,
+                dot_prod_dim=dot_prod_dim, n_heads=n_heads,
+                attn_dropout=attn_dropout
+            )
+        else:
+            self.attention = SetAttentionLayer(
+                n_psi_layers, psi_width, psi_latent_width,
+                dot_prod_dim=dot_prod_dim, n_heads=n_heads,
+                attn_dropout=attn_dropout
+            )
 
         self.aggregation = SegmentAggregation(
             aggregation_fn='sum',
@@ -231,37 +270,38 @@ class DeepSetAttentionModel(tf.keras.Model):
         self.positional_encoding.build(times)
         transformed_times = (
             self.positional_encoding.compute_output_shape(times))
-        if self._n_modalities > 100:
-            # Use an embedding instead of one hot encoding when we have a very
-            # high number of modalities
-            self._evtl_create_embedding_layer()
-            self.modality_embedding.build(measurements)
-            mod_shape = self.modality_embedding.compute_output_shape(
-                measurements)[-1]
-        else:
-            mod_shape = self._n_modalities
-        phi_input = (
-            None, transformed_times[-1] + values[-1] + mod_shape)
+        mod_shape = self._n_modalities
+        phi_input_dim = transformed_times[-1] + values[-1] + mod_shape
         self.demo_encoder = tf.keras.Sequential(
             [
                 tf.keras.layers.Dense(self.phi_width, activation='relu'),
-                tf.keras.layers.Dense(phi_input[-1])
+                tf.keras.layers.Dense(phi_input_dim)
             ],
             name='demo_encoder'
         )
         self.demo_encoder.build(demo)
-        self.phi.build(phi_input)
-        self.attention.build(phi_input)
-        attention_output = self.attention.compute_output_shape(phi_input)
-        phi_output = self.phi.compute_output_shape(phi_input)
-        aggregated_output = self.aggregation.compute_output_shape(
-            [phi_output[0], phi_output[1] * attention_output[1]])
-        self.rho.build(aggregated_output)
-        # super().build(input_shapes)
+        if self.return_sequences:
+            phi_input = (None, phi_input_dim)
+            self.phi.build(phi_input)
+            phi_output = self.phi.compute_output_shape(phi_input)
+            self.attention.build(phi_input)
+            attention_output = self.attention.compute_output_shape(phi_input)
+            aggregated_output = [
+                phi_output[0], phi_output[1] * attention_output[1]]
+            self.rho.build(aggregated_output)
+        else:
+            phi_input = (None, phi_input_dim)
+            self.phi.build(phi_input)
+            phi_output = self.phi.compute_output_shape(phi_input)
+            self.attention.build(phi_input)
+            attention_output = self.attention.compute_output_shape(phi_input)
+            aggregated_output = self.aggregation.compute_output_shape(
+                [phi_output[0], phi_output[1] * attention_output[1]])
+            self.rho.build(aggregated_output)
 
     def call(self, inputs):
         if self.return_sequences:
-            demo, times, values, measurements, lengths, inverse_timepoints, pred_lengths = inputs
+            demo, times, values, measurements, lengths, elem_per_tp, pred_lengths = inputs
             if len(pred_lengths.get_shape()) == 2:
                 pred_lengths = tf.squeeze(pred_lengths, -1)
         else:
@@ -269,13 +309,8 @@ class DeepSetAttentionModel(tf.keras.Model):
         transformed_times = self.positional_encoding(times)
 
         # Transform modalities
-        if self._n_modalities > 100:
-            # Use an embedding instead of one hot encoding when we have a very
-            # high number of modalities
-            transformed_measurements = self.modality_embedding(measurements)
-        else:
-            transformed_measurements = tf.one_hot(
-                measurements, self._n_modalities, dtype=tf.float32)
+        transformed_measurements = tf.one_hot(
+            measurements, self._n_modalities, dtype=tf.float32)
 
         combined_values = tf.concat(
             (
@@ -290,83 +325,65 @@ class DeepSetAttentionModel(tf.keras.Model):
             [tf.expand_dims(demo_encoded, 1), combined_values], axis=1)
 
         # Somehow eager execution and graph mode behave differently.
-        # In graph mode legths has an additional dimension
-        #
-        # TODO: Get this too work with deomgraphics
+        # In graph mode lengths has an additional dimension
         if len(lengths.get_shape()) == 2:
             lengths = tf.squeeze(lengths, -1)
 
-        # We additionally have the encoded demographics as a set element
-        mask = tf.sequence_mask(lengths+1, name='mask')
-
-        collected_values, segment_ids = self.to_segments(
-            combined_with_demo, mask)
-
-        encoded = self.phi(collected_values)
         if self.return_sequences:
-            # We need times in the segment format here
-            # Add a fake time point for each segment to represent the
-            # demographics. This is a bit hacky.
-            fake_times = tf.concat(
-                [tf.ones_like(times[:, 0:1, :]) * -0.1, times], axis=1)
-            all_times, _ = self.to_segments(fake_times, mask)
-            all_times = all_times[:, 0]
-            # unique_with_counts only works on 1d arrays, thus we need to
-            # convert the all times such that they dont overlap between
-            # instances
-            max_time = tf.reduce_max(all_times) + 1
-            fake_times = (
-                all_times
-                + tf.cast(segment_ids, tf.float32) * max_time
-            )
-            _, __, count = tf.unique_with_counts(fake_times)
+            # We additionally have the encoded demographics as a set element
+            mask = tf.sequence_mask(lengths+1, name='mask')
 
-            last_index = tf.cumsum(count) - 1
+            collected_values, segment_ids = self.to_segments(
+                combined_with_demo, mask)
 
-            preattentions = self.attention(collected_values, segment_ids, lengths)
-            preattentions = tf.squeeze(preattentions, -1)
-            weighted_encoded = cumulative_softmax_weighting(
+            preattentions = self.attention(collected_values, segment_ids)
+            encoded = self.phi(collected_values)
+            agg = cumulative_softmax_weighting(
                 encoded, preattentions, segment_ids)
-            # Flatten the heads and features into a single dimension
-            weighted_encoded = tf.reshape(
-                weighted_encoded,
-                tf.stack([tf.shape(weighted_encoded)[0], self.latent_width*self.n_heads])
+            # Remove heads dimension
+            agg = tf.reshape(
+                agg,
+                tf.stack([tf.shape(agg)[0], tf.constant(-1)], axis=0)
             )
-            # print(weighted_encoded, last_index)
-            per_timepoint_output = \
-                tf.gather(weighted_encoded, last_index, axis=0)
-            output = self.rho(per_timepoint_output)
 
-            # It is possible that individual time points do not have an
-            # associated measurement. Thus we need to additionally
-            # distribute our predictions to those timepoints where no
-            # measurements are present.
-            prediction_mask = tf.sequence_mask(pred_lengths)
-            valid_predictions = tf.cast(tf.where(prediction_mask), tf.int32)
+            predictions_mask = tf.sequence_mask(pred_lengths)
+            gathered_time_indices, batch_indices = self.to_segments(
+                elem_per_tp, predictions_mask)
 
-            # We need the number of unique values in order to offset the
-            # indices.
-            n_unique = tf.reduce_max(inverse_timepoints, axis=1) + 1
-            # Add annother additional count for the demograhics and offset the
-            # indices by one as we dont want to include the demographics only
-            # observation.
-            index_offset = tf.math.cumsum(n_unique + 1, exclusive=True) + 1
-            tp_to_unique_tp = inverse_timepoints + tf.expand_dims(index_offset, -1)
-            tp_to_unique_tp = tf.gather_nd(tp_to_unique_tp, valid_predictions)
-            # Then we can gather them from the output tensor, potentially
-            # duplicating values such that each prediction time point has
-            # a matching output.
-            output = tf.gather(output, tp_to_unique_tp, axis=0)
+            # Compute index of the last observation associated with the
+            # provided time.
+            prediction_indices = tf.math.cumsum(gathered_time_indices)
+            # Add an offset for each instance to account for demographics. This
+            # offset decreases for each later index in the batch. Thus we can
+            # use the batch indices.
+            prediction_indices += batch_indices
+
+            gathered_embeddings = tf.gather_nd(
+                agg, prediction_indices[:, None])
+            # Lost shape information
+            gathered_embeddings.set_shape([None, None])
+            output = self.rho(gathered_embeddings)
+
+            valid_predictions = tf.cast(tf.where(predictions_mask), tf.int32)
 
             output = tf.scatter_nd(
                 valid_predictions,
                 output,
-                tf.concat([tf.shape(prediction_mask), tf.shape(output)[-1:]], axis=0)
+                tf.concat(
+                    [tf.shape(predictions_mask), tf.shape(output)[-1:]],
+                    axis=0
+                )
             )
             # tf.print(tf.shape(output), tf.shape(mask))
-            output._keras_mask = prediction_mask
+            output._keras_mask = predictions_mask
             return output
         else:
+            # We additionally have the encoded demographics as a set element
+            mask = tf.sequence_mask(lengths+1, name='mask')
+
+            collected_values, segment_ids = self.to_segments(
+                combined_with_demo, mask)
+
             encoded = self.phi(collected_values)
             attentions = self.attention(collected_values, segment_ids, lengths)
 
@@ -548,7 +565,6 @@ class DeepSetAttentionModel(tf.keras.Model):
             demo, X, Y, measurements, lengths = ts
             if self._n_modalities is None:
                 self._n_modalities = int(measurements.get_shape()[-1])
-                self._evtl_create_embedding_layer()
             X = tf.expand_dims(X, -1)
             measurement_positions = tf.cast(tf.where(measurements), tf.int32)
             X_indices = measurement_positions[:, 0]
@@ -563,11 +579,8 @@ class DeepSetAttentionModel(tf.keras.Model):
                 # We need to know now many prediction values each instance
                 # should have when doing online prediction
                 prediction_length = tf.shape(labels)[0]
-                unique_times, inv = tf.unique(gathered_X[:, 0])
-                # n_unique = tf.shape(unique_times)[0]
-                # tf.print(prediction_length, tf.shape(unique_times)[0])
-                # tf.print(X[:, 0], unique_times)
-                return (demo, gathered_X, gathered_Y, Y_indices, length, inv, prediction_length), labels
+                counts = tf.reduce_sum(tf.cast(measurements, tf.int64), axis=1)
+                return (demo, gathered_X, gathered_Y, Y_indices, length, counts, prediction_length), labels
             else:
                 return (demo, gathered_X, gathered_Y, Y_indices, length), labels
 
@@ -582,7 +595,6 @@ class DeepSetAttentionModel(tf.keras.Model):
                 h.name: h._default for h in hyperparams
             }
         )
-
 
 
 class DeepSetAttentionNoPosModel(DeepSetAttentionModel):
