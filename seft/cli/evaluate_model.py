@@ -181,8 +181,6 @@ def evaluate_on_physionet_2019(dataset_name, model, split='validation'):
         batch_index = np.arange(len(instance_labels))
         predictions.append(instance_predictions[(batch_index, last_index)])
         labels.append(instance_labels[(batch_index, last_index)])
-    import ipdb
-    ipdb.set_trace()
     predictions = np.concatenate(predictions, axis=0)
     labels = np.concatenate(labels, axis=0)
     instance_ids = np.concatenate(instance_ids, axis=0).ravel()
