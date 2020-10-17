@@ -1,9 +1,11 @@
 # SeFT - Set functions for Time Series
 
 This is the main source code for the submission `Set Functions for Time
-Series`. It depends on two further packages `keras-transformer` (fork with
-support for sequences of different lengths) and `medical-ts-datasets`
-( containing the implementation of the datasets used ) which are included into
+Series`. It depends on two further packages
+[keras-transformer](https://github.com/ExpectationMax/keras-transformer)
+(fork with support for sequences of different lengths) and
+[medical-ts-datasets](https://github.com/ExpectationMax/medical_ts_datasets)
+(containing the implementation of the datasets used) which are included into
 the repository in the `repos` directory as git submodules.
 
 ## Installation
