@@ -109,6 +109,10 @@ The following models are supported:
 `GRUSimpleModel`, `PhasedLSTMModel`, `InterpolationPredictionModel`,
 `GRUDModel`, `TransformerModel`, `DeepSetAttentionModel`
 
+It was brought to my attention, that the GRUD implementation is not entirely
+in line with the original paper. For further information please refer to this
+[issue](https://github.com/BorgwardtLab/Set_Functions_for_Time_Series/issues/1).
+
 # Copyright
 
 This collective work is copyright (c) 2020 by Max Horn. Individual
