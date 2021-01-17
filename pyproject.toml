@@ -6,11 +6,11 @@ authors = ["Anonymous"]
 license = "BSD-3-clause"
 
 [tool.poetry.dependencies]
-python = "^3.7"
-medical-ts-datasets = {path = "repos/medical_ts_datasets"}
-tensorflow = { version = "=1.15.2", markers = "sys_platform != 'linux'" }
-tensorflow-gpu = { version = "=1.15.2", markers = "sys_platform == 'linux'" }
-keras-transformer = {path = "repos/keras-transformer"}
+python = "~3.7"    # tensorflow 1.15.x is not available for python 3.8 and 3.9
+tensorflow = { version = "=1.15.3", markers = "sys_platform != 'linux'" }
+tensorflow-gpu = { version = "=1.15.3", markers = "sys_platform == 'linux'" }
+medical-ts-datasets = { git = "https://github.com/ExpectationMax/medical_ts_datasets.git", branch = "master" }
+keras-transformer = { git = "https://github.com/ExpectationMax/keras-transformer.git", branch = "master" }
 scikit-learn = "^0.22.1"
 tqdm = "^4.42.0"
 

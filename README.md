@@ -5,8 +5,7 @@ Series`. It depends on two further packages
 [keras-transformer](https://github.com/ExpectationMax/keras-transformer)
 (fork with support for sequences of different lengths) and
 [medical-ts-datasets](https://github.com/ExpectationMax/medical_ts_datasets)
-(containing the implementation of the datasets used) which are included into
-the repository in the `repos` directory as git submodules.
+(containing the implementation of the datasets used).
 
 ## Installation
 
@@ -16,8 +15,7 @@ The easiest way to get started is to create a virtual python environment and to 
 the package inside this environment.
 
 ```bash
-# Clone the repository using the `--recursive` option
-git clone --recursive https://github.com/BorgwardtLab/Set_Functions_for_Time_Series.git
+git clone https://github.com/BorgwardtLab/Set_Functions_for_Time_Series.git
 cd Set_Functions_for_Time_Series
 # Install poetry
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
