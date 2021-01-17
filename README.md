@@ -10,10 +10,10 @@ the repository in the `repos` directory as git submodules.
 
 ## Installation
 
-The project requires at least python version `3.7` and is set up to use
-`poetry` packaging utility. The easiest way to get started is to create
-a virtual python environment and to install the package inside this
-environment.
+The project requires python version `3.7` (newer versions of python are unfortunately
+incompatible with tensorflow 1.15.x) and is set up to use `poetry` packaging utility.
+The easiest way to get started is to create a virtual python environment and to install
+the package inside this environment.
 
 ```bash
 # Clone the repository using the `--recursive` option
@@ -102,6 +102,22 @@ the data needs to be manually downloaded and provided in the form of
 a compressed file. We are planning to make this file available in the MIMIC-III
 preprocessed data repository.
 
+### Adding new datasets
+The datasets used in this code are implemented in a separate package [medical_ts_dataset](https://github.com/ExpectationMax/medical_ts_datasets).
+In total you would need to run the following steps:
+
+ 1. Implement dataset in a fork of `medical_ts_datasets` or create you own package with the implementation. The easiest way is probably to adapt one of the readers to fit your format (see the `medical_ts_datasets` package). For some further information I recommend consulting the [tfds documentation](https://www.tensorflow.org/datasets/add_dataset). In the end the following code should be able to run:
+   ```python
+   import tensorflow_datasets as tfds
+   import medical_ts_datasets      # this registers your dataset or any other dataset with tensorflow datasets
+   import my_package_with_dataset  # alternatively if you decide to implement you datasets in a separate package
+   tfds.load('<your_dataset_name>')
+   ```
+ 2. Add a an entry to the directory [here](https://github.com/BorgwardtLab/Set_Functions_for_Time_Series/blob/d72d446f26c68a3f0f73edb2251e2e55defa5129/seft/tasks.py#L218) defining which type of endpoint you dataset provides.
+ 3. Optional, if you decide to implement the dataset in a separate package) add import statements to you package [here](https://github.com/BorgwardtLab/Set_Functions_for_Time_Series/blob/d72d446f26c68a3f0f73edb2251e2e55defa5129/seft/training_utils.py#L9)
+
+Then you should be able to run all models in this codebase on your data.
+On a final note as I assume you are working with medical data (which is usually not publically accessable on the internet) [this section](https://www.tensorflow.org/datasets/add_dataset#manual_download_and_extraction) of the tfds documentation might come in handy.
 
 ## Available models
 
