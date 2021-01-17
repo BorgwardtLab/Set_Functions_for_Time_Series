@@ -104,18 +104,29 @@ preprocessed data repository.
 The datasets used in this code are implemented in a separate package [medical_ts_dataset](https://github.com/ExpectationMax/medical_ts_datasets).
 In total you would need to run the following steps:
 
- 1. Implement dataset in a fork of `medical_ts_datasets` or create you own package with the implementation. The easiest way is probably to adapt one of the readers to fit your format (see the `medical_ts_datasets` package). For some further information I recommend consulting the [tfds documentation](https://www.tensorflow.org/datasets/add_dataset). In the end the following code should be able to run:
-   ```python
-   import tensorflow_datasets as tfds
-   import medical_ts_datasets      # this registers your dataset or any other dataset with tensorflow datasets
-   import my_package_with_dataset  # alternatively if you decide to implement you datasets in a separate package
-   tfds.load('<your_dataset_name>')
-   ```
- 2. Add a an entry to the directory [here](https://github.com/BorgwardtLab/Set_Functions_for_Time_Series/blob/d72d446f26c68a3f0f73edb2251e2e55defa5129/seft/tasks.py#L218) defining which type of endpoint you dataset provides.
- 3. Optional, if you decide to implement the dataset in a separate package) add import statements to you package [here](https://github.com/BorgwardtLab/Set_Functions_for_Time_Series/blob/d72d446f26c68a3f0f73edb2251e2e55defa5129/seft/training_utils.py#L9)
+ 1. Implement dataset in a fork of `medical_ts_datasets` or create you own
+    package with the implementation. The easiest way is probably to adapt one
+    of the readers to fit your format (see the `medical_ts_datasets` package).
+    For some further information I recommend consulting the [tfds
+    documentation](https://www.tensorflow.org/datasets/add_dataset). In the end
+    the following code should be able to run:  
+    ```python
+    import tensorflow_datasets as tfds
+    import medical_ts_datasets      # this registers your dataset or any other dataset with tensorflow datasets
+    import my_package_with_dataset  # alternatively if you decide to implement you datasets in a separate package
+    tfds.load('<your_dataset_name>')
+    ```
+ 2. Add a an entry to the directory
+    [here](https://github.com/BorgwardtLab/Set_Functions_for_Time_Series/blob/d72d446f26c68a3f0f73edb2251e2e55defa5129/seft/tasks.py#L218)
+    defining which type of endpoint you dataset provides.
+ 3. Optional, if you decide to implement the dataset in a separate package) add
+    import statements to you package
+    [here](https://github.com/BorgwardtLab/Set_Functions_for_Time_Series/blob/d72d446f26c68a3f0f73edb2251e2e55defa5129/seft/training_utils.py#L9)
 
-Then you should be able to run all models in this codebase on your data.
-On a final note as I assume you are working with medical data (which is usually not publically accessable on the internet) [this section](https://www.tensorflow.org/datasets/add_dataset#manual_download_and_extraction) of the tfds documentation might come in handy.
+Then you should be able to run all models in this codebase on your data.  On
+a final note as I assume you are working with medical data (which is usually
+not publically accessable on the internet) [this section](https://www.tensorflow.org/datasets/add_dataset#manual_download_and_extraction)
+of the tfds documentation might come in handy.
 
 ## Available models
 
